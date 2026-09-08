@@ -1,0 +1,6 @@
+kaggle.json
+*.pth
+__pycache__/
+.ipynb_checkpoints/
+data/
+test_split.csv
