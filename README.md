@@ -1,10 +1,10 @@
-# Tropical Cyclone Intensity Classification from Satellite Imagery using Deep Learning
+# Tropical Cyclone Intensity Classification from Satellite Imagery
 
 CIA 3 Project — Computer Vision (Deep Learning-based approach)
 
 ## Overview
 
-This project classifies tropical cyclone intensity into 5 categories (based on the IMD scale) directly from INSAT-3D infrared satellite imagery, using a transfer-learning CNN (ResNet18). Grad-CAM is used to visualize which regions of each image the model focused on when making its prediction.
+Tropical cyclone intensity has traditionally been estimated using the Dvorak technique — a manual process of reading satellite cloud patterns. This project explores a deep learning alternative: a ResNet18 model fine-tuned to classify cyclone intensity directly from a single infrared satellite image, into one of five IMD-standard intensity categories, with Grad-CAM used to visualize what the model focuses on when making each prediction.
 
 **Pipeline:** Satellite image → ResNet18 (transfer learning) → intensity category → Grad-CAM explainability
 
@@ -12,7 +12,7 @@ This project classifies tropical cyclone intensity into 5 categories (based on t
 
 - **Source:** [INSAT3D Infrared & Raw Cyclone Imagery (2013–2021)](https://www.kaggle.com/datasets/sshubam/insat3d-infrared-raw-cyclone-images-20132021) (Kaggle)
 - **Size:** 418 infrared satellite images
-- **Labels:** Wind speed in knots, sourced from the dataset's official label CSV, bucketed into 5 IMD intensity categories:
+- **Labels:** Wind speed (knots), from the dataset's official label CSV, bucketed into IMD intensity categories:
 
 | Category | Wind Speed (knots) |
 |---|---|
@@ -24,46 +24,60 @@ This project classifies tropical cyclone intensity into 5 categories (based on t
 
 ## Method
 
-- **Model:** ResNet18 pretrained on ImageNet, fine-tuned for 5-class classification
-- **Training:** Class-weighted loss (to handle imbalance toward rarer, high-intensity storms), heavy data augmentation (rotation, flip, colour jitter) given the small dataset size
-- **Explainability:** Grad-CAM heatmaps generated for every prediction, overlaid on a grayscale version of the base image for visual clarity
+- **Model:** ResNet18, pretrained on ImageNet, fine-tuned for 5-class classification
+- **Class imbalance:** handled with inverse-frequency class-weighted loss
+- **Data augmentation:** random rotation, horizontal flip, colour jitter (heavier than usual, given the small dataset)
+- **Explainability:** Grad-CAM heatmaps generated for every prediction, overlaid on a grayscale version of the base image — IR satellite images are already jet/rainbow-colored, so overlaying a jet-colored heatmap directly on the original would wash it out
 
 ## Results
 
-- **Test accuracy:** ~29–48% across runs (small test set of 21 images leads to noticeable run-to-run variance)
-- **Grad-CAM findings:** for higher-intensity storms in particular, the model consistently focuses on the cyclone's eye/core region — consistent with meteorological expectations
-- Misclassifications cluster near category boundaries (e.g. a 33kt storm mistaken for the neighbouring 34kt+ category), which is expected given how close these values sit to the IMD scale's cutoffs
+**Training curves:**
 
-**Known limitation:** the dataset is small (418 images across 5 classes), which limits generalization and causes accuracy to vary between training runs. This is discussed further in the accompanying literature review.
+![Training curves](results/training_curves.png)
+
+**Confusion matrix:**
+
+![Confusion matrix](results/confusion_matrix.png)
+
+- Test accuracy: ~29–48% across runs (small 21-image test set leads to real run-to-run variance)
+- Misclassifications cluster near category boundaries (e.g. a 33kt storm predicted as the neighbouring 34kt+ class), which is expected given how close raw values sit to the IMD scale's cutoffs
+- **Known limitation:** 418 images across 5 classes is a small dataset for deep learning; this is discussed as an explicit limitation in the accompanying literature review
+
+**Grad-CAM — where the model focuses:**
+
+| Depression | Cyclonic Storm | Severe CS |
+|---|---|---|
+| ![Depression](results/gradcam_Depression.png) | ![Cyclonic Storm](results/gradcam_Cyclonic_Storm.png) | ![Severe CS](results/gradcam_Severe_CS.png) |
+
+| Very Severe CS | Extremely Severe CS |
+|---|---|
+| ![Very Severe CS](results/gradcam_Very_Severe_CS.png) | ![Extremely Severe CS](results/gradcam_Extremely_Severe_CS.png) |
+
+For higher-intensity storms in particular, the heatmap consistently concentrates on the cyclone's eye/core region — consistent with what meteorological theory says should matter for intensity classification.
 
 ## Why Google Colab
 
-Training was done in Google Colab rather than locally, since a GPU (T4) is needed for practical training times — CNN training on CPU alone would be significantly slower. This notebook was developed and run in Colab, then exported here with all outputs (training logs, confusion matrix, Grad-CAM images) preserved.
+Training used a Google Colab T4 GPU for practical training times — CNN training on CPU alone is significantly slower. The notebook in `notebooks/` captures that original run's full output (training log, confusion matrix, Grad-CAM images). The pipeline was also verified to run end-to-end locally on CPU (see `src/`), so it works with or without a GPU.
 
-## Files
+## Project Structure
 
 ```
 cyclone-intensity-classification/
-├── src/                      # all pipeline code
+├── src/                      # pipeline code
 │   ├── config.py             # shared paths, classes, hyperparameters
 │   ├── download_data.py      # downloads the dataset from Kaggle
-│   ├── dataset.py            # builds labeled dataframe + PyTorch Dataset
+│   ├── dataset.py            # labeled dataframe + PyTorch Dataset
 │   ├── model.py              # ResNet18 model definition
-│   ├── train.py              # training loop -> saves best_model.pth
-│   ├── evaluate.py           # evaluation on test set -> confusion matrix
-│   └── gradcam.py            # Grad-CAM visualizations per category
+│   ├── train.py              # training loop -> best_model.pth
+│   ├── evaluate.py           # test-set evaluation -> confusion matrix
+│   └── gradcam.py            # Grad-CAM visualizations
 ├── notebooks/
-│   └── Cyclone_Intensity_Classification_v2.ipynb   # original Colab run, with saved outputs
-├── results/                  # generated output images (created automatically)
-│   ├── training_curves.png
-│   ├── confusion_matrix.png
-│   └── gradcam_*.png (one per intensity category)
+│   └── Cyclone_Intensity_Classification_v2.ipynb   # original Colab run
+├── results/                  # output images (shown above)
 ├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
-
-The `.ipynb` file is the original Colab run, kept as-is because GitHub renders its saved outputs (training log, confusion matrix, Grad-CAM images) inline. The `src/` scripts are the same pipeline broken into clean, reusable modules that anyone can run from the command line, GPU or not.
 
 ## How to Run
 
@@ -71,23 +85,16 @@ The `.ipynb` file is the original Colab run, kept as-is because GitHub renders i
 pip install -r requirements.txt
 cd src
 
-# 1. Place your Kaggle API token at ~/.kaggle/kaggle.json
-#    (get one from https://www.kaggle.com/settings -> API -> Create New Token)
+# 1. Kaggle API token at ~/.kaggle/kaggle.json
+#    (get one: kaggle.com/settings -> API -> Create New Token)
 
-# 2. Download the dataset (saved to ../data/, not tracked in git)
-python download_data.py
-
-# 3. Train (saves best_model.pth here in src/, and a plot to ../results/)
-python train.py
-
-# 4. Evaluate (reads best_model.pth, saves confusion matrix to ../results/)
-python evaluate.py
-
-# 5. Generate Grad-CAM visualizations (saved to ../results/)
-python gradcam.py
+python download_data.py   # downloads dataset to ../data/
+python train.py           # trains model -> best_model.pth, ../results/training_curves.png
+python evaluate.py        # evaluates -> ../results/confusion_matrix.png
+python gradcam.py         # generates ../results/gradcam_*.png
 ```
 
-**Note:** training on CPU will be significantly slower than on a GPU. This project was originally trained on a Google Colab T4 GPU; `notebooks/Cyclone_Intensity_Classification_v2.ipynb` captures that run's full output. Running `train.py` locally without a GPU still works end-to-end (tested), just more slowly.
+Tested working on both GPU (Colab T4) and CPU (local, no GPU) — CPU is just slower.
 
 ## Author
 
