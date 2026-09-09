@@ -96,6 +96,3 @@ python gradcam.py         # generates ../results/gradcam_*.png
 
 Tested working on both GPU (Colab T4) and CPU (local, no GPU) — CPU is just slower.
 
-## Author
-
-Umma Jubaiya — B.Tech CSE (AI & ML), CHRIST (Deemed to be University), Bengaluru
